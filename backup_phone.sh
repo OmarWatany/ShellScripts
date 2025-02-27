@@ -4,7 +4,7 @@
 # rsync -avhP --delete $HOME/Documents/ /media/exdrive/Documents
 
 DST_PREFIX="$HOME/Phone"
-SRC_PREFIX="$HOME/sshfs/mobile"
+SRC_PREFIX="$HOME/fuse_mount/mobile"
 
 FOLDERS=("backups" "SwiftBackup" "Manga" "Download" "WhatsApp")
 FOLDERS_SRC_PREFIX=("" "" "" "" "Android/media/com.whatsapp/")
