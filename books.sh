@@ -16,6 +16,7 @@ case "$book" in
 *.epub) READERs="${epub_readers[@]}" ;;
 *) READERs="${pdf_readers[@]}" ;;
 esac
+
 READER=$(for i in ${READERs[@]}; do echo "$i"; done | rofi -dmenu -i -theme-str 'window {width: 85%;font : "Iosevka 18";}')
 case "$READER" in
 "mupdf") mupdf -C ea9b67 "$book" ;;

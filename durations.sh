@@ -27,7 +27,7 @@ while getopts ":dhvx:D:" opt; do
         printf "" >"$dump_file"
         dump_durations=true
     fi
-    if [[ $opt = 'd' ]] ; then
+    if [[ $opt = 'd' ]]; then
         printf "" >"$dump_file"
         dump_durations=true
     fi
@@ -39,7 +39,14 @@ while [[ -f "$video_files" ]]; do
     video_files_POSTFIX=$(echo "$video_files_POSTFIX + 1" | bc)
     video_files="/tmp/video_files_duration${video_files_POSTFIX}.txt"
 done
-trap 'rm "$video_files"' EXIT
+
+cleanup() {
+    echo "\nReceived signal. Cleaning up..."
+    [[ -f "$video_files" ]] && rm "$video_files"
+    exit 0
+}
+
+trap cleanup SIGINT SIGTERM SIGHUP
 
 # Find video files
 if command -v fd &>/dev/null; then
@@ -116,7 +123,7 @@ print_durations() {
 
         days=$((factored_d / 86400))
         days_list+=($days)
-        [[ ${days%.*} -gt ${max[2]%.*} ]] && max[2]="$days"
+        [[ "${days%.*}" -gt "${max[2]%.*}" ]] && max[2]="$days"
     done
     # max[1] -> hrs , max[2] -> days
     if [[ ${max[1]%.*} -gt "10" ]]; then # hrs >= 10  -> pad[1] = 5
@@ -146,3 +153,4 @@ print_durations() {
 
 calculate_dur "$video_files"
 print_durations
+[[ -f "$video_files" ]] && rm "$video_files"

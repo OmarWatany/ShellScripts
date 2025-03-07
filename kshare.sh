@@ -1,5 +1,5 @@
 #!/usr/bin/bash
 
-device=`kdeconnect-cli -a --name-only | dmenu`
+device=$(kdeconnect-cli -a --name-only | dmenu)
 echo "$@"
-kdeconnect-cli --name "$device" --share $@
+kdeconnect-cli --name "$device" --share "$@"
