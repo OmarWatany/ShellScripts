@@ -1,44 +1,26 @@
 #!/usr/bin/zsh
-VERSION="0.5.0"
+VERSION="0.5.2"
 
-video_files_POSTFIX="0"
-dump_durations=false
+counted=0
+files_count=0
+total_duration=0
 VERBOSE=false
+single_video=false
+dump_durations=false
 dump_file="./dump_durations.txt"
+video_files=""
+video_files_POSTFIX="0"
 
 # Usage function
 usage() {
     echo "Usage: $0 [-hdv] [-D <file>]"
     echo "  -d: Dump each file's duration into default_file."
     echo "  -D: Dump each file's duration into <file>."
+    echo "  -f: Get <file's> duration."
     echo "  -h: Print this usage message."
     echo "  -v: Verbose."
     exit 1
 }
-
-# Parse command-line arguments
-while getopts ":dhvx:D:" opt; do
-    [[ $opt = 'h' ]] && usage
-    [[ $opt = 'v' ]] && VERBOSE=true
-    [[ $opt = 'x' ]] && set -x
-    if [[ $opt = 'D' ]]; then
-        [ "$OPTARG" ] && dump_file="$OPTARG"
-        echo "dumping to $dump_file"
-        printf "" >"$dump_file"
-        dump_durations=true
-    fi
-    if [[ $opt = 'd' ]]; then
-        printf "" >"$dump_file"
-        dump_durations=true
-    fi
-done
-
-# Create a unique temporary file
-video_files="/tmp/video_files_duration${video_files_POSTFIX}.txt"
-while [[ -f "$video_files" ]]; do
-    video_files_POSTFIX=$(echo "$video_files_POSTFIX + 1" | bc)
-    video_files="/tmp/video_files_duration${video_files_POSTFIX}.txt"
-done
 
 cleanup() {
     echo "\nReceived signal. Cleaning up..."
@@ -47,18 +29,6 @@ cleanup() {
 }
 
 trap cleanup SIGINT SIGTERM SIGHUP
-
-# Find video files
-if command -v fd &>/dev/null; then
-    fd -L "\.(mp4|webm|mkv|m4a|mov|3gp|mj2|mp3|opus|aac|flac)" -E tmsu -E WhatsApp >"$video_files"
-else
-    echo "fd Doesn't EXIST"
-    exit 1
-fi
-
-files_count=$(wc -l <"$video_files")
-total_duration=0
-counted=0
 
 reset_values() {
     files_count=$(wc -l <"$video_files")
@@ -83,24 +53,26 @@ format_duration() {
 
 calculate_dur() {
     while read -r video; do
-        if [[ -f "$video" ]]; then
-            if "$VERBOSE"; then
-                echo -e "\e[32m$video \e[33m [ $counted\\$files_count ]\e[0m"
-                duration=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$video")
-            else
-                printf "\e[33mProgress [ %d\\%d ]\e[0m\r" "$counted" "$files_count"
-                duration=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$video" 2>/dev/null)
-            fi
-            if $dump_durations; then
-                output=$(format_duration "$duration")
-                echo "$output -> $video" >>"$dump_file"
-            fi
-            counted=$((counted + 1))
-        else
+        if [[ ! -f "$video" ]]; then
             "$VERBOSE" && echo -e "\e[31m$video NOT FOUND\e[0m"
             duration="0"
+            continue
         fi
+
+        if "$VERBOSE"; then
+            echo -e "\e[32m$video \e[33m [ $counted\\$files_count ]\e[0m"
+            duration=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$video")
+        else
+            printf "\e[33mProgress [ %d\\%d ]\e[0m\r" "$counted" "$files_count"
+            duration=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$video" 2>/dev/null)
+        fi
+        if $dump_durations; then
+            output=$(format_duration "$duration")
+            echo "$output -> $video" >>"$dump_file"
+        fi
+        counted=$((counted + 1))
         total_duration=$(echo "$total_duration + $duration" | bc)
+
     done <"$1"
 }
 
@@ -150,6 +122,45 @@ print_durations() {
     printf "Counted Files     : %d\n" "$counted"
     printf "Uncounted Files   : %d\n" "$uncounted"
 }
+
+# Create a unique temporary file
+video_files="/tmp/video_files_duration${video_files_POSTFIX}.txt"
+while [[ -f "$video_files" ]]; do
+    video_files_POSTFIX=$(echo "$video_files_POSTFIX + 1" | bc)
+    video_files="/tmp/video_files_duration${video_files_POSTFIX}.txt"
+done
+
+# Parse command-line arguments
+while getopts ":dhvx:f:D:" opt; do
+    [[ $opt = 'h' ]] && usage
+    [[ $opt = 'v' ]] && VERBOSE=true
+    [[ $opt = 'x' ]] && set -x
+    if [[ $opt = 'D' ]]; then
+        [ "$OPTARG" ] && dump_file="$OPTARG"
+        echo "dumping to $dump_file"
+        printf "" >"$dump_file"
+        dump_durations=true
+    fi
+    if [[ $opt = 'd' ]]; then
+        printf "" >"$dump_file"
+        dump_durations=true
+    fi
+    if [[ $opt = 'f' ]]; then 
+        single_video=true
+        echo "$OPTARG" > $video_files
+    fi
+done
+
+if ! $single_video ; then
+    # Find video files
+    if ! command -v fd &>/dev/null; then
+        echo "fd Doesn't exist"
+        exit 1
+    fi
+    fd -L "\.(mp4|webm|mkv|m4a|mov|3gp|mj2|mp3|opus|aac|flac)" -E tmsu -E WhatsApp >"$video_files"
+fi
+
+files_count=$(wc -l <"$video_files")
 
 calculate_dur "$video_files"
 print_durations
