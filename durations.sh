@@ -8,8 +8,9 @@ VERBOSE=false
 single_video=false
 dump_durations=false
 dump_file="./dump_durations.txt"
-video_files=""
-video_files_POSTFIX="0"
+# Create a unique temporary file
+video_files="$(mktemp -t "video_files.XXXXXX")"
+output_file="/dev/null"
 
 # Usage function
 usage() {
@@ -19,6 +20,7 @@ usage() {
     echo "  -f: Get <file's> duration."
     echo "  -h: Print this usage message."
     echo "  -v: Verbose."
+    echo "  -o: output file"
     exit 1
 }
 
@@ -47,8 +49,8 @@ get_dirs() {
 
 format_duration() {
     [[ ${#@} < 1 ]] && return
-    formated_secs=$(date -u -d "@$1" +"%H:%M:%S")
-    printf "$formated_secs\n"
+    formatted_secs=$(date -u -d "@$1" +"%H:%M:%S")
+    printf "$formatted_secs\n"
 }
 
 calculate_dur() {
@@ -80,7 +82,7 @@ pad=("4" "2")
 # parameter "duration"
 print_durations() {
     max=("0" "0")
-    factors=("1" "2" "1.5" "1.25" "0.5" "3" "4")
+    factors=("1.0" "1.25" "1.500" "2.0000" "2.500" "3.00" "4.0")
     days_list=()
     hrs_list=()
     d_list=()
@@ -97,24 +99,23 @@ print_durations() {
         days_list+=($days)
         [[ "${days%.*}" -gt "${max[2]%.*}" ]] && max[2]="$days"
     done
+
     # max[1] -> hrs , max[2] -> days
-    if [[ ${max[1]%.*} -gt "10" ]]; then # hrs >= 10  -> pad[1] = 5
-        pad[1]="5"
-        if [[ ${max[1]%.*} -gt "100" ]]; then # hrs >= 100  -> pad[1] = 6
-            pad[1]="6"
-            if [[ ${max[1]%.*} -gt "1000" ]]; then # hrs >= 1000  -> pad[1] = 7
-                pad[1]="7"
-                [[ ${max[2]%.*} -gt "100" ]] && pad[2]="3" # days >= 100 -> hrs >= 2400
-            fi
-        fi
-    fi
+
+    [[ ${max[1]%.*} -gt 10   ]] && pad[1]="5" # hrs >= 10    -> pad[1] = 5
+    [[ ${max[1]%.*} -gt 100  ]] && pad[1]="6" # hrs >= 100   -> pad[1] = 6
+    [[ ${max[1]%.*} -gt 1000 ]] && pad[1]="7" # hrs >= 1000  -> pad[1] = 7
+
+    # Handle the specific day-related override 
+    # days >= 100 -> hrs >= 2400
+    [[ ${max[1]%.*} -gt 1000 && ${max[2]%.*} -gt 100 ]] && pad[2]="3"
 
     for i in {1..${#factors}}; do
-        formated_secs=$(date -u -d "@${d_list[$i]}" +"%H:%M:%S")
+        formatted_secs=$(date -u -d "@${d_list[$i]}" +"%H:%M:%S")
         days_format=$(printf "%0${pad[2]}d:" "${days_list[$i]}")
         hrs_format=$(printf "%-${pad[1]}.2f" "${hrs_list[$i]}")
 
-        printf "$days_format$formated_secs ( $hrs_format ) x${factors[$i]}\n"
+        printf "$days_format$formatted_secs ( $hrs_format ) x${factors[$i]}\n"
     done
 
     uncounted=$((files_count - counted))
@@ -123,15 +124,8 @@ print_durations() {
     printf "Uncounted Files   : %d\n" "$uncounted"
 }
 
-# Create a unique temporary file
-video_files="/tmp/video_files_duration${video_files_POSTFIX}.txt"
-while [[ -f "$video_files" ]]; do
-    video_files_POSTFIX=$(echo "$video_files_POSTFIX + 1" | bc)
-    video_files="/tmp/video_files_duration${video_files_POSTFIX}.txt"
-done
-
 # Parse command-line arguments
-while getopts ":dhvx:f:D:" opt; do
+while getopts ":dhvxo:f:D:" opt; do
     [[ $opt = 'h' ]] && usage
     [[ $opt = 'v' ]] && VERBOSE=true
     [[ $opt = 'x' ]] && set -x
@@ -149,6 +143,9 @@ while getopts ":dhvx:f:D:" opt; do
         single_video=true
         echo "$OPTARG" > $video_files
     fi
+    if [[ $opt = 'o' ]]; then 
+        output_file="$OPTARG"
+    fi
 done
 
 if ! $single_video ; then
@@ -162,6 +159,7 @@ fi
 
 files_count=$(wc -l <"$video_files")
 
+# echo "$output_file"
 calculate_dur "$video_files"
-print_durations
+print_durations | tee "$output_file"
 [[ -f "$video_files" ]] && rm "$video_files"
