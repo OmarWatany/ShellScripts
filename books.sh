@@ -5,7 +5,7 @@ usage() {
 	exit 0
 }
 
-files=$(fd ".(pdf|djvu|epub)" $HOME/Documents/)
+files=$(fd "\.(pdf|djvu|epub)" -E "MIT/" $HOME/Documents/)
 pdf_readers=("zathura" "FBReader" "epy" "mupdf" "calibre" "apvlv" "sioyek" "xpdf" "atril")
 epub_readers=("FBReader" "calibre" "zathura" "mupdf" "apvlv" "sioyek")
 book=$(echo -e "$files" | rofi -dmenu -i -theme-str 'window {width: 85%;font : "Iosevka 18";}')
@@ -19,7 +19,8 @@ esac
 
 READER=$(for i in ${READERs[@]}; do echo "$i"; done | rofi -dmenu -i -theme-str 'window {width: 85%;font : "Iosevka 18";}')
 case "$READER" in
-"mupdf") mupdf -C ea9b67 "$book" ;;
+# "mupdf") mupdf -C ea9b67 "$book" ;;
+"mupdf") mupdf "$book" ;;
 "calibre") ebook-viewer --detach "$book" &>/dev/null ;;
 "epy") kitty epy "$book" ;;
 *) "$READER" "$book" &>/dev/null ;;
